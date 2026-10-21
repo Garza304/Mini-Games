@@ -1,0 +1,13 @@
+{
+  "name": "ops-codenames",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Real-time multiplayer Codenames for Ops-play",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

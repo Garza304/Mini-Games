@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Codenames · Ops-play</title>
+<style>
+  :root {
+    --red: #d9483b; --red-deep: #a3301f; --red-tint: #f1c4bc; --red-text: #ff8f80;
+    --blue: #2f6fd6; --blue-deep: #1c4c9c; --blue-tint: #c3d6f5; --blue-text: #86b3ff;
+    --neutral: #d6c49b; --neutral-tint: #e9dfc6;
+    --assassin: #232323;
+    --bg: #161a24; --panel: #212737; --panel-2: #2c344a; --line: #384260;
+    --text: #edf0f7; --muted: #9aa4ba; --card: #f3ebd7; --card-text: #2b2518;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); }
+  button { font: inherit; cursor: pointer; border: 0; border-radius: 8px; padding: 7px 12px; background: var(--panel-2); color: var(--text); }
+  button:hover:not(:disabled) { filter: brightness(1.2); }
+  button:disabled { opacity: .4; cursor: default; }
+  button.primary { background: #e7b93c; color: #1d1708; font-weight: 700; }
+  button.red { background: var(--red); } button.blue { background: var(--blue); }
+  input, select, textarea { font: inherit; background: #0f121a; color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; }
+  .muted { color: var(--muted); }
+
+  header { display: flex; align-items: center; gap: 14px; padding: 10px 18px; background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  header h1 { font-size: 20px; margin: 0; letter-spacing: .12em; }
+  header .spacer { flex: 1; }
+  #conn { font-size: 13px; color: #ffb35c; display: none; }
+  #conn.show { display: inline; }
+
+  main { display: grid; grid-template-columns: 220px minmax(0, 1fr) 220px; gap: 16px; padding: 16px; max-width: 1400px; margin: 0 auto; }
+  @media (max-width: 1000px) {
+    main { grid-template-columns: 1fr 1fr; }
+    #center { grid-column: 1 / -1; order: -1; }
+  }
+
+  .team { background: var(--panel); border-radius: 12px; padding: 14px; border-top: 6px solid; align-self: start; }
+  .team.red { border-color: var(--red); } .team.blue { border-color: var(--blue); }
+  .team.active { box-shadow: 0 0 0 2px currentColor, 0 0 24px -4px currentColor; }
+  .team.red.active { color: var(--red); } .team.blue.active { color: var(--blue); }
+  .team > * { color: var(--text); }
+  .team-head { display: flex; justify-content: space-between; align-items: center; }
+  .team-head h2 { margin: 0; font-size: 18px; text-transform: uppercase; letter-spacing: .08em; }
+  .team.red h2, .team.red .count { color: var(--red-text); }
+  .team.blue h2, .team.blue .count { color: var(--blue-text); }
+  .count { font-size: 36px; font-weight: 800; line-height: 1; }
+  .count small { display: block; font-size: 11px; font-weight: 500; color: var(--muted); text-align: right; }
+  .role { margin-top: 14px; }
+  .role h3 { margin: 0 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
+  .role ul { list-style: none; margin: 0 0 8px; padding: 0; min-height: 22px; }
+  .role li { padding: 2px 0; }
+  .role li.me { font-weight: 700; }
+  .role li.off { opacity: .45; }
+  .role li .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #4cd07d; margin-right: 6px; }
+  .role li.off .dot { background: #777; }
+  .role button { width: 100%; font-size: 13px; padding: 5px; }
+
+  #status { text-align: center; font-size: 19px; font-weight: 600; min-height: 34px; margin-bottom: 10px; }
+  #status .t-red { color: var(--red-text); } #status .t-blue { color: var(--blue-text); }
+  .clue { display: inline-flex; gap: 10px; align-items: center; padding: 4px 14px; border-radius: 999px; background: var(--panel-2); margin-left: 8px; font-size: 20px; letter-spacing: .06em; }
+  .clue b { background: var(--text); color: var(--bg); border-radius: 999px; padding: 0 9px; }
+  .clue.red { box-shadow: inset 0 0 0 2px var(--red); } .clue.blue { box-shadow: inset 0 0 0 2px var(--blue); }
+
+  /* Keep the whole board on screen without scrolling on shorter laptop displays. */
+  #board { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; max-width: max(520px, calc((100vh - 230px) * 1.5)); margin: 0 auto; }
+  .card {
+    position: relative; aspect-ratio: 1.55; border-radius: 10px; background: var(--card); color: var(--card-text);
+    display: flex; align-items: center; justify-content: center; text-align: center; padding: 6px;
+    font-weight: 800; letter-spacing: .05em; container-type: inline-size;
+    box-shadow: 0 3px 0 rgba(0,0,0,.35); user-select: none; transition: transform .08s, box-shadow .15s;
+    border: 3px solid transparent;
+  }
+  .card.can { cursor: pointer; }
+  .card.can:hover { transform: translateY(-2px); box-shadow: 0 5px 0 rgba(0,0,0,.35); }
+  .card.mine { border-color: #e7b93c; }
+  /* Size each word to fit its card: --len is the longest run of letters. */
+  .card .word { padding: 0 2px; font-size: min(17cqw, calc(118cqw / var(--len, 6))); }
+  /* Spymaster key view of unrevealed cards */
+  .card.key.red { background: var(--red-tint); border-bottom: 6px solid var(--red); }
+  .card.key.blue { background: var(--blue-tint); border-bottom: 6px solid var(--blue); }
+  .card.key.neutral { background: var(--neutral-tint); border-bottom: 6px solid var(--neutral); }
+  .card.key.assassin { background: #4a4a4a; color: #f3f3f3; border-bottom: 6px solid #000; }
+  /* Revealed cards */
+  .card.rev { box-shadow: inset 0 0 0 2px rgba(0,0,0,.15); }
+  .card.rev .word { opacity: .75; font-size: min(12cqw, calc(88cqw / var(--len, 6))); }
+  .card.rev.red { background: var(--red); color: #fff; }
+  .card.rev.blue { background: var(--blue); color: #fff; }
+  .card.rev.neutral { background: var(--neutral); color: #5b4b28; }
+  .card.rev.assassin { background: var(--assassin); color: #ddd; }
+  .card.rev .agent { position: absolute; top: 6px; left: 8px; font-size: 14px; opacity: .8; }
+  .card.rev.spyview { filter: saturate(.55) brightness(.8); }
+  .card.last { animation: pop .5s ease-out; }
+  @keyframes pop { 0% { transform: scale(.85); } 60% { transform: scale(1.06); } 100% { transform: scale(1); } }
+  .marks { position: absolute; left: 4px; right: 4px; bottom: 4px; display: flex; flex-wrap: wrap; gap: 3px; justify-content: center; }
+  .marks span { font-size: 10px; font-weight: 600; letter-spacing: 0; background: #e7b93c; color: #1d1708; border-radius: 999px; padding: 0 6px; }
+  .card .hint { position: absolute; top: 4px; right: 6px; font-size: 9px; font-weight: 600; letter-spacing: 0; color: #8a6a00; }
+
+  #controls { margin-top: 14px; min-height: 44px; display: flex; justify-content: center; align-items: center; gap: 10px; flex-wrap: wrap; }
+  #clueForm { display: none; gap: 8px; align-items: center; }
+  #clueForm input { width: 220px; text-transform: uppercase; }
+  #guessBar { display: none; gap: 12px; align-items: center; }
+  #toolbar { margin-top: 14px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+
+  #log { margin-top: 14px; background: var(--panel); border-radius: 12px; padding: 10px 14px; max-height: 170px; overflow-y: auto; font-size: 13px; }
+  #log div { padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,.04); }
+  #log .red { color: var(--red-text); } #log .blue { color: var(--blue-text); }
+  #log time { color: var(--muted); margin-right: 8px; font-variant-numeric: tabular-nums; }
+
+  #banner { display: none; text-align: center; padding: 14px; border-radius: 12px; margin-bottom: 12px; font-size: 22px; font-weight: 800; }
+  #banner.red { display: block; background: var(--red); } #banner.blue { display: block; background: var(--blue); }
+  #banner button { margin-left: 14px; vertical-align: middle; }
+
+  dialog { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 14px; padding: 22px; max-width: 520px; width: calc(100% - 32px); }
+  dialog::backdrop { background: rgba(5, 7, 12, .7); }
+  dialog h2 { margin-top: 0; }
+  dialog label { display: block; margin: 12px 0 4px; font-size: 13px; color: var(--muted); }
+  dialog input, dialog textarea { width: 100%; }
+  dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+  dialog li { margin-bottom: 6px; }
+
+  #toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: #3b1f22; border: 1px solid #a3301f; padding: 10px 16px; border-radius: 10px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  #toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<header>
+  <h1>CODENAMES</h1>
+  <span class="muted">Room: <b id="roomName"></b></span>
+  <button id="copyLink">Copy invite link</button>
+  <span id="conn">Reconnecting…</span>
+  <span class="spacer"></span>
+  <span id="you" class="muted"></span>
+  <button id="rename">Change name</button>
+</header>
+
+<main>
+  <section class="team red" id="team-red"></section>
+
+  <section id="center">
+    <div id="banner"></div>
+    <div id="status"></div>
+    <div id="board"></div>
+    <div id="controls">
+      <form id="clueForm">
+        <input id="clueWord" placeholder="One-word clue" maxlength="30" autocomplete="off">
+        <select id="clueNum">
+          <option>0</option><option selected>1</option><option>2</option><option>3</option><option>4</option>
+          <option>5</option><option>6</option><option>7</option><option>8</option><option>9</option>
+          <option value="inf">∞</option>
+        </select>
+        <button class="primary" type="submit">Give clue</button>
+      </form>
+      <div id="guessBar">
+        <span class="muted">Click a card to suggest it. Click it again to lock it in.</span>
+        <button id="endTurn">End turn</button>
+      </div>
+      <div id="waitMsg" class="muted"></div>
+    </div>
+    <div id="toolbar">
+      <button id="newGame">New game</button>
+      <button id="shuffle">Shuffle teams</button>
+      <button id="words">Custom words</button>
+      <button id="rulesBtn">How to play</button>
+    </div>
+    <div id="log"></div>
+  </section>
+
+  <section class="team blue" id="team-blue"></section>
+</main>
+
+<dialog id="joinDlg">
+  <form method="dialog" id="joinForm">
+    <h2>Join Codenames</h2>
+    <label for="nameInput">Your name</label>
+    <input id="nameInput" maxlength="20" required autocomplete="off" autofocus>
+    <div class="actions"><button class="primary" type="submit">Join</button></div>
+  </form>
+</dialog>
+
+<dialog id="wordsDlg">
+  <form method="dialog" id="wordsForm">
+    <h2>Custom words</h2>
+    <p class="muted">Add inside jokes, team names, server names, whatever you like. One per line or comma-separated.
+      They're mixed into the next game, and the default list fills the rest of the 25 cards.</p>
+    <textarea id="wordsText" rows="10" placeholder="NAGIOS&#10;SPLUNK&#10;PAGER&#10;ON-CALL"></textarea>
+    <div class="actions">
+      <button type="button" id="wordsClear">Clear</button>
+      <button type="button" id="wordsCancel">Cancel</button>
+      <button class="primary" type="submit">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="rulesDlg">
+  <h2>How to play</h2>
+  <ul>
+    <li>Split into <b style="color:var(--red-text)">Red</b> and <b style="color:var(--blue-text)">Blue</b>. Each team picks one <b>spymaster</b>; everyone else is an <b>operative</b>.</li>
+    <li>Spymasters see the secret key: which words belong to which team, the neutral bystanders, and the one <b>assassin</b>.</li>
+    <li>On your turn, the spymaster gives a one-word clue plus a number: how many cards it relates to.</li>
+    <li>Operatives click cards to suggest them (everyone sees the suggestions), then click again to reveal. You get up to number + 1 guesses.</li>
+    <li>Your color: keep going. Neutral or the other team's color: turn over. The assassin: your team loses instantly.</li>
+    <li>The team that starts has 9 agents to find, the other has 8. First team to find all of theirs wins.</li>
+    <li>Clue of 0 or ∞ means unlimited guesses. You can always end your turn early.</li>
+  </ul>
+  <div class="actions"><button id="rulesClose" class="primary">Got it</button></div>
+</dialog>
+
+<div id="toast"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const cap = s => s[0].toUpperCase() + s.slice(1);
+
+// crypto.randomUUID needs HTTPS, and teammates will be on plain http://<ip>, so build an id by hand.
+function makeId() {
+  const b = new Uint8Array(16);
+  crypto.getRandomValues(b);
+  return [...b].map(x => x.toString(16).padStart(2, '0')).join('');
+}
+
+const params = new URLSearchParams(location.search);
+const room = (params.get('room') || 'ops-play').toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'ops-play';
+// ?seat=2 lets one browser hold several players (handy for testing).
+const seat = (params.get('seat') || '').replace(/[^a-z0-9]/gi, '').slice(0, 8);
+const store = k => `cn.${k}${seat ? '.' + seat : ''}`;
+const pid = localStorage.getItem(store('pid')) || (() => { const id = makeId(); localStorage.setItem(store('pid'), id); return id; })();
+let myName = localStorage.getItem(store('name')) || '';
+let state = null, es = null, rejoining = false, lastRevealed = null, lastLogAt = 0;
+
+if (params.get('room') !== room) {
+  params.set('room', room);
+  history.replaceState(null, '', '?' + params);
+}
+$('#roomName').textContent = room;
+
+let toastTimer;
+function toast(msg) {
+  const t = $('#toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
+}
+
+async function post(type, extra = {}) {
+  try {
+    const r = await fetch('/action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ room, pid, type, ...extra }),
+    });
+    const j = await r.json();
+    if (j.error) toast(j.error);
+    return !j.error;
+  } catch {
+    toast('Could not reach the game server');
+    return false;
+  }
+}
+
+function connect() {
+  if (es) return;
+  es = new EventSource(`/events?room=${encodeURIComponent(room)}&pid=${pid}`);
+  es.onopen = () => $('#conn').classList.remove('show');
+  es.onerror = () => $('#conn').classList.add('show');
+  es.onmessage = e => {
+    state = JSON.parse(e.data);
+    // The server forgets players when it restarts; quietly rejoin with the same name.
+    if (!state.you && myName && !rejoining) {
+      rejoining = true;
+      post('join', { name: myName }).finally(() => (rejoining = false));
+    }
+    render();
+  };
+}
+
+function askName() {
+  $('#nameInput').value = myName;
+  $('#joinDlg').showModal();
+}
+
+$('#joinForm').addEventListener('submit', async e => {
+  const name = $('#nameInput').value.trim();
+  if (!name) { e.preventDefault(); return; }
+  myName = name;
+  localStorage.setItem(store('name'), name);
+  await post('join', { name });
+  connect();
+});
+$('#joinDlg').addEventListener('cancel', e => { if (!myName) e.preventDefault(); });
+
+function teamPanel(team) {
+  const s = state;
+  const members = s.players.filter(p => p.team === team);
+  const li = p => `<li class="${p.id === pid ? 'me' : ''} ${p.online ? '' : 'off'}"><span class="dot"></span>${esc(p.name)}${p.id === pid ? ' (you)' : ''}</li>`;
+  const roleBlock = (role, label) => {
+    const list = members.filter(p => p.role === role);
+    const mine = s.you && s.you.team === team && s.you.role === role;
+    return `<div class="role"><h3>${label}</h3><ul>${list.map(li).join('') || '<li class="muted">—</li>'}</ul>
+      <button data-team="${team}" data-role="${role}" ${mine ? 'disabled' : ''}>${mine ? 'You are here' : 'Join as ' + role}</button></div>`;
+  };
+  const active = !s.winner && s.turn === team;
+  const el = $('#team-' + team);
+  el.classList.toggle('active', active);
+  el.innerHTML = `
+    <div class="team-head"><h2>${team}</h2><div class="count">${s.remaining[team]}<small>left</small></div></div>
+    ${roleBlock('spymaster', 'Spymaster')}
+    ${roleBlock('operative', 'Operatives')}`;
+}
+
+function render() {
+  const s = state;
+  if (!s) return;
+  const you = s.you;
+  const isSpy = you && you.role === 'spymaster';
+  const myTurn = you && !s.winner && you.team === s.turn;
+  const canGuess = myTurn && you.role === 'operative' && s.clue;
+  const needClue = myTurn && isSpy && !s.clue;
+
+  $('#you').innerHTML = you ? `You: <b>${esc(you.name)}</b> · <span style="color:var(--${you.team}-text)">${you.team} ${you.role}</span>` : '';
+  teamPanel('red');
+  teamPanel('blue');
+
+  const banner = $('#banner');
+  banner.className = s.winner || '';
+  banner.innerHTML = s.winner ? `${cap(s.winner)} team wins! <span style="font-weight:500">${esc(s.winReason)}</span> <button class="primary" data-new>Play again</button>` : '';
+
+  const T = `<span class="t-${s.turn}">${cap(s.turn)}</span>`;
+  let status = '';
+  if (s.winner) status = '<span class="muted">The full key is now revealed to everyone.</span>';
+  else if (!s.clue) status = needClue ? `Your turn, spymaster. Give ${T} a clue.` : `${T} spymaster is thinking of a clue…`;
+  else {
+    const n = s.clue.number === 'inf' ? '∞' : s.clue.number;
+    const left = s.guessesLeft === null ? 'unlimited guesses' : `${s.guessesLeft} guess${s.guessesLeft === 1 ? '' : 'es'} left`;
+    status = `${T} is guessing <span class="clue ${s.turn}">${esc(s.clue.word)} <b>${n}</b></span> <span class="muted" style="font-size:15px">${left}</span>`;
+  }
+  $('#status').innerHTML = status;
+
+  // Animate only the card that was just turned over.
+  const revealedNow = s.cards.map(c => c.revealed);
+  const fresh = lastRevealed && lastRevealed.length === 25 ? revealedNow.map((r, i) => r && !lastRevealed[i]) : [];
+  lastRevealed = revealedNow;
+
+  $('#board').innerHTML = s.cards.map((c, i) => {
+    const cls = ['card'];
+    if (c.revealed) cls.push('rev', c.color);
+    else if (c.color) cls.push('key', c.color);
+    if (c.revealed && isSpy && !s.winner) cls.push('spyview');
+    if (!c.revealed && canGuess) cls.push('can');
+    if (c.markedByYou) cls.push('mine');
+    if (fresh[i]) cls.push('last');
+    const icon = c.revealed ? `<span class="agent">${c.color === 'assassin' ? '☠' : c.color === 'neutral' ? '·' : '●'}</span>` : '';
+    const marks = c.marks.length ? `<div class="marks">${c.marks.map(m => `<span>${esc(m)}</span>`).join('')}</div>` : '';
+    const hint = c.markedByYou ? '<span class="hint">click to reveal</span>' : '';
+    const len = Math.max(4, ...c.word.split(" ").map(w => w.length));
+    return `<div class="${cls.join(' ')}" data-i="${i}" style="--len:${len}">${icon}${hint}<span class="word">${esc(c.word)}</span>${marks}</div>`;
+  }).join('');
+
+  $('#clueForm').style.display = needClue ? 'flex' : 'none';
+  $('#guessBar').style.display = canGuess ? 'flex' : 'none';
+  let wait = '';
+  if (!you) wait = 'Joining…';
+  else if (!s.winner && !needClue && !canGuess) {
+    if (you.team !== s.turn) wait = `Waiting for ${s.turn}'s turn to finish.`;
+    else if (isSpy) wait = 'Your operatives are guessing. No hints!';
+    else wait = 'Waiting for your spymaster.';
+  }
+  $('#waitMsg').textContent = wait;
+
+  const logEl = $('#log');
+  const newest = s.log.length ? s.log[s.log.length - 1].at : 0;
+  const stick = newest !== lastLogAt || logEl.scrollTop + logEl.clientHeight >= logEl.scrollHeight - 8;
+  lastLogAt = newest;
+  logEl.innerHTML = s.log.map(l => {
+    const t = new Date(l.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return `<div class="${l.team || ''}"><time>${t}</time>${esc(l.text)}</div>`;
+  }).join('') || '<span class="muted">Game log</span>';
+  if (stick) logEl.scrollTop = logEl.scrollHeight;
+
+  document.title = (myTurn && (needClue || canGuess) ? '▶ Your turn · ' : '') + 'Codenames · Ops-play';
+}
+
+$('#board').addEventListener('click', e => {
+  const el = e.target.closest('.card.can');
+  if (!el) return;
+  const i = Number(el.dataset.i);
+  post(state.cards[i].markedByYou ? 'reveal' : 'mark', { index: i });
+});
+
+document.addEventListener('click', e => {
+  const b = e.target.closest('button[data-role]');
+  if (b) post('setRole', { team: b.dataset.team, role: b.dataset.role });
+  if (e.target.closest('button[data-new]')) post('newGame');
+});
+
+$('#clueForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const word = $('#clueWord').value.trim();
+  if (!word) return;
+  const n = $('#clueNum').value;
+  if (await post('clue', { word, number: n === 'inf' ? 'inf' : Number(n) })) $('#clueWord').value = '';
+});
+
+$('#endTurn').onclick = () => post('endTurn');
+$('#newGame').onclick = () => {
+  if (state && !state.winner && state.cards.some(c => c.revealed) && !confirm('Start a new game? The current board will be lost.')) return;
+  post('newGame');
+};
+$('#shuffle').onclick = () => {
+  if (confirm('Randomly split everyone online into two teams? The first player on each team becomes spymaster.')) post('shuffleTeams');
+};
+$('#words').onclick = () => {
+  $('#wordsText').value = (state?.customWords || []).join('\n');
+  $('#wordsDlg').showModal();
+};
+$('#wordsForm').addEventListener('submit', () => post('setWords', { text: $('#wordsText').value }));
+$('#wordsClear').onclick = () => { $('#wordsText').value = ''; };
+$('#wordsCancel').onclick = () => $('#wordsDlg').close();
+$('#rulesBtn').onclick = () => $('#rulesDlg').showModal();
+$('#rulesClose').onclick = () => $('#rulesDlg').close();
+$('#rename').onclick = askName;
+
+$('#copyLink').onclick = async () => {
+  const url = `${location.origin}/?room=${encodeURIComponent(room)}`;
+  try {
+    await navigator.clipboard.writeText(url);
+    toast('Invite link copied');
+  } catch {
+    prompt('Copy this link and send it to your team:', url);
+  }
+};
+
+if (myName) post('join', { name: myName }).then(connect);
+else askName();
+</script>
+</body>
+</html>
